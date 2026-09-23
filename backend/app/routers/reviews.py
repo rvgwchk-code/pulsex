@@ -1,72 +1,89 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app import store
+from app.auth import get_current_user, new_id, require_roles
+from app.db import get_db
+from app.models.entities import Company, CompanyResponse, EmploymentVerification, Report, Review, User
 from app.schemas.reviews import PublicReview, ReportCreate, ResponseCreate, ReviewCreate
 
 router = APIRouter()
 
 
-def public_review(review: dict) -> dict:
-    return {key: value for key, value in review.items() if key not in {"author_id", "verification_id"}}
+def public_review(review: Review) -> dict:
+    return {
+        "id": review.id,
+        "company_id": review.company_id,
+        "rating": review.rating,
+        "role": review.role,
+        "location": review.location,
+        "tenure_range": review.tenure_range,
+        "pros": review.pros,
+        "cons": review.cons,
+        "advice": review.advice,
+        "status": review.status,
+        "verified": review.verified,
+        "created_at": review.created_at,
+    }
 
 
 @router.get("/companies/{company_id}/reviews", response_model=list[PublicReview])
-def list_reviews(company_id: str):
-    return [
-        public_review(review)
-        for review in store.reviews.values()
-        if review["company_id"] == company_id and review["status"] == "approved"
-    ]
+def list_reviews(company_id: str, db: Session = Depends(get_db)):
+    return [public_review(review) for review in db.query(Review).filter(Review.company_id == company_id, Review.status == "approved").all()]
 
 
 @router.post("/companies/{company_id}/reviews", response_model=PublicReview, status_code=201)
 def submit_review(
     company_id: str,
     payload: ReviewCreate,
-    x_user_id: str = Header(default="demo-user"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    verification = store.verifications.get(payload.verification_id)
-    if not verification or verification["user_id"] != x_user_id or verification["company_id"] != company_id:
+    verification = db.get(EmploymentVerification, payload.verification_id)
+    if not verification or verification.user_id != user.id or verification.company_id != company_id:
         raise HTTPException(status_code=403, detail="A matching employment verification is required")
-    if verification["status"] != "verified":
+    if verification.status != "verified":
         raise HTTPException(status_code=403, detail="Employment verification is not complete")
-    if any(
-        review["author_id"] == x_user_id
-        and review["verification_id"] == payload.verification_id
-        for review in store.reviews.values()
-    ):
+    if db.query(Review).filter(Review.author_id == user.id, Review.verification_id == payload.verification_id).first():
         raise HTTPException(status_code=409, detail="One review per employment episode is allowed")
 
-    review = {
-        "id": store.new_id(),
-        "company_id": company_id,
+    review = Review(
+        id=new_id(),
+        company_id=company_id,
         **payload.model_dump(exclude={"verification_id"}),
-        "status": "pending",
-        "verified": True,
-        "created_at": datetime.now(UTC),
-        "updated_at": datetime.now(UTC),
-        "author_id": x_user_id,
-        "verification_id": payload.verification_id,
-    }
-    store.reviews[review["id"]] = review
+        status="pending",
+        verified=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        author_id=user.id,
+        verification_id=payload.verification_id,
+    )
+    db.add(review)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="One review per employment episode is allowed")
     return public_review(review)
 
 
 @router.post("/reviews/{review_id}/report", status_code=201)
-def report_review(review_id: str, payload: ReportCreate, x_user_id: str = Header(default="demo-user")):
-    if review_id not in store.reviews:
+def report_review(review_id: str, payload: ReportCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not db.get(Review, review_id):
         raise HTTPException(status_code=404, detail="Review not found")
-    report = {"id": store.new_id(), "review_id": review_id, "reporter_id": x_user_id, "reason": payload.reason, "status": "open"}
-    store.reports[report["id"]] = report
-    return {"id": report["id"], "status": report["status"]}
+    report = Report(id=new_id(), review_id=review_id, reporter_id=user.id, reason=payload.reason, status="open")
+    db.add(report)
+    db.commit()
+    return {"id": report.id, "status": report.status}
 
 
 @router.post("/reviews/{review_id}/response", status_code=201)
-def respond_to_review(review_id: str, payload: ResponseCreate, x_user_id: str = Header(default="demo-company-user")):
-    if review_id not in store.reviews:
+def respond_to_review(review_id: str, payload: ResponseCreate, user: User = Depends(require_roles("company", "admin")), db: Session = Depends(get_db)):
+    if not db.get(Review, review_id):
         raise HTTPException(status_code=404, detail="Review not found")
-    response = {"id": store.new_id(), "review_id": review_id, "company_user_id": x_user_id, "response": payload.response, "status": "published"}
-    store.responses[response["id"]] = response
-    return {"id": response["id"], "status": response["status"], "response": response["response"]}
+    response = CompanyResponse(id=new_id(), review_id=review_id, company_user_id=user.id, response=payload.response, status="published")
+    db.add(response)
+    db.commit()
+    return {"id": response.id, "status": response.status, "response": response.response}

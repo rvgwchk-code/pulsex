@@ -2,3 +2,4 @@ plandocs/
 **/__pycache__/
 *.py[cod]
 .venv/
+backend/pulsex.db

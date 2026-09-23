@@ -4,12 +4,13 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CompanySummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
 
     id: str
     name: str
     domain: str
     status: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CompanyPage(CompanySummary):
