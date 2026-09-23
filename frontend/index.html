@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PulseX | Decode the pulse of work</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#">Pulse<span>X</span></a>
+      <nav><a href="#explore">Explore</a><a href="#share">Share experience</a></nav>
+      <span class="trust-mark">Private by design</span>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow">Verified workplace intelligence</p>
+        <h1>See work more clearly.</h1>
+        <p class="hero-copy">Structured experiences from people who have actually been there, with identity kept out of public view.</p>
+        <form id="search-form" class="search-bar">
+          <label class="sr-only" for="company-query">Search companies</label>
+          <input id="company-query" placeholder="Search a company or domain" autocomplete="off" />
+          <button type="submit">Search</button>
+        </form>
+      </section>
+
+      <section id="explore" class="workspace">
+        <div class="section-heading"><div><p class="eyebrow">Company directory</p><h2>Explore the signal</h2></div><span id="result-count"></span></div>
+        <div id="company-list" class="company-list"></div>
+        <div id="company-detail" class="company-detail" hidden></div>
+      </section>
+
+      <section id="share" class="share-section">
+        <div><p class="eyebrow">Your perspective matters</p><h2>Share without putting your name on it.</h2><p>PulseX verifies your relationship with a company, then keeps your account identity separate from the public review.</p></div>
+        <form id="review-form" class="review-form">
+          <select id="review-company" aria-label="Company" required></select>
+          <button id="verify-button" type="button">Verify in test mode</button>
+          <div id="review-fields" hidden>
+            <div class="form-grid"><input id="role" placeholder="Role" required /><input id="location" placeholder="Location" required /><input id="tenure" placeholder="Tenure range" required /><input id="rating" type="number" min="1" max="5" placeholder="Rating 1-5" required /></div>
+            <textarea id="pros" placeholder="What worked well?" required></textarea>
+            <textarea id="cons" placeholder="What was difficult?" required></textarea>
+            <textarea id="advice" placeholder="What would you tell someone considering this company?" required></textarea>
+            <button type="submit">Submit for moderation</button>
+          </div>
+          <p id="form-status" class="form-status" role="status"></p>
+        </form>
+      </section>
+    </main>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
